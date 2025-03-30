@@ -33,41 +33,42 @@ export default function MainMenu({ onGoRmutovani, onGoChmelovar }) {
         </div>
 
         {/* Pravý blok: tabulka teplot */}
+        {/* Pravý blok: tabulka teplot */}
         <table className="bg-white rounded-lg border border-[#C7A324] text-left text-sm">
           <tbody>
-            <tr>
+            <tr className="h-10">
               <td className="px-3 py-2 border-b border-[#C7A324] flex items-center gap-2">
                 <span>🔥</span>
                 <span>Voda v bojleru</span>
               </td>
-              <td className="px-3 py-2 border-b border-[#C7A324]">
+              <td className="px-3 py-2 border-b border-[#C7A324] align-middle">
                 {temps.boiler} °C
               </td>
             </tr>
-            <tr>
+            <tr className="h-10">
               <td className="px-3 py-2 border-b border-[#C7A324] flex items-center gap-2">
                 <span>🍲</span>
                 <span>Teplota ve varně</span>
               </td>
-              <td className="px-3 py-2 border-b border-[#C7A324]">
+              <td className="px-3 py-2 border-b border-[#C7A324] align-middle">
                 {temps.varna} °C
               </td>
             </tr>
-            <tr>
+            <tr className="h-10">
               <td className="px-3 py-2 border-b border-[#C7A324] flex items-center gap-2">
                 <span>🧺</span>
-                <span>Teplota ve scezovači</span>
+                <span>Teplota ve scezovačce</span>
               </td>
-              <td className="px-3 py-2 border-b border-[#C7A324]">
+              <td className="px-3 py-2 border-b border-[#C7A324] align-middle">
                 {temps.scezovac} °C
               </td>
             </tr>
-            <tr>
+            <tr className="h-10">
               <td className="px-3 py-2 flex items-center gap-2">
                 <span>🍺</span>
                 <span>Teplota mladiny</span>
               </td>
-              <td className="px-3 py-2">
+              <td className="px-3 py-2 align-middle">
                 {temps.mladina} °C
               </td>
             </tr>
