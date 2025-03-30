@@ -11,7 +11,7 @@ export default function MainMenu({ onGoRmutovani, onGoChmelovar }) {
 
   useEffect(() => {
     // Načteme teploty z /api/temperatures
-    fetch("http://127.0.0.1:5000/api/temperatures")
+    fetch("https://blissful-connection-production.up.railway.app/api/temperatures")
       .then(res => res.json())
       .then(data => {
         setTemps(data);

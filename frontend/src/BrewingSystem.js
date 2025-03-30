@@ -30,13 +30,13 @@ export default function BrewingSystem() {
   // =========== NAČTENÍ DAT Z BACKENDU ===========
   useEffect(() => {
     // 1) Načíst rmutovací recepty
-    fetch("http://127.0.0.1:5000/api/recipes")
+    fetch("https://blissful-connection-production.up.railway.app/api/recipes")
       .then((res) => res.json())
       .then((data) => setRecipes(data))
       .catch((err) => console.error("Chyba při načítání /api/recipes:", err));
 
     // 2) Načíst chmelovarové recepty
-    fetch("http://127.0.0.1:5000/api/chmelovarRecipes")
+    fetch("https://blissful-connection-production.up.railway.app/api/chmelovarRecipes")
       .then((res) => res.json())
       .then((data) => setChmelovarRecipes(data))
       .catch((err) => console.error("Chyba při načítání /api/chmelovarRecipes:", err));
