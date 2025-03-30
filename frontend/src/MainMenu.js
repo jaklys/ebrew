@@ -34,46 +34,39 @@ export default function MainMenu({ onGoRmutovani, onGoChmelovar }) {
 
         {/* Pravý blok: tabulka teplot */}
         {/* Pravý blok: tabulka teplot */}
-        <table className="bg-white rounded-lg border border-[#C7A324] text-left text-sm">
-          <tbody>
-            <tr className="h-10">
-              <td className="px-3 py-2 border-b border-[#C7A324] flex items-center gap-2">
+        <div className="bg-white rounded-xl shadow border border-[#C7A324] p-4 text-sm min-w-[220px]">
+          <h3 className="font-semibold text-base mb-3 text-[#C7A324]">Aktuální teploty</h3>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
                 <span>🔥</span>
                 <span>Voda v bojleru</span>
-              </td>
-              <td className="px-3 py-2 border-b border-[#C7A324] align-middle">
-                {temps.boiler} °C
-              </td>
-            </tr>
-            <tr className="h-10">
-              <td className="px-3 py-2 border-b border-[#C7A324] flex items-center gap-2">
+              </div>
+              <span className="font-medium">{temps.boiler} °C</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
                 <span>🍲</span>
-                <span>Teplota ve varně</span>
-              </td>
-              <td className="px-3 py-2 border-b border-[#C7A324] align-middle">
-                {temps.varna} °C
-              </td>
-            </tr>
-            <tr className="h-10">
-              <td className="px-3 py-2 border-b border-[#C7A324] flex items-center gap-2">
+                <span>Ve varně</span>
+              </div>
+              <span className="font-medium">{temps.varna} °C</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
                 <span>🧺</span>
-                <span>Teplota ve scezovačce</span>
-              </td>
-              <td className="px-3 py-2 border-b border-[#C7A324] align-middle">
-                {temps.scezovac} °C
-              </td>
-            </tr>
-            <tr className="h-10">
-              <td className="px-3 py-2 flex items-center gap-2">
+                <span>Ve scezovačce</span>
+              </div>
+              <span className="font-medium">{temps.scezovac} °C</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
                 <span>🍺</span>
-                <span>Teplota mladiny</span>
-              </td>
-              <td className="px-3 py-2 align-middle">
-                {temps.mladina} °C
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                <span>Mladina</span>
+              </div>
+              <span className="font-medium">{temps.mladina} °C</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Spodní část: 3 boxy / tlačítka */}
