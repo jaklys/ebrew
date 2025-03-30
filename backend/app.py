@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, os
 from flask_cors import CORS
 
 app = Flask(__name__)
@@ -140,4 +140,6 @@ def delete_chmelovar_recipe(idx):
     return jsonify({"msg": f"Chmelovar recept {idx} smazán"})
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
+
