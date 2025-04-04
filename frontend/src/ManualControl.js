@@ -30,7 +30,7 @@ export default function ManualControl({ onBack, token }) {
   // Načtení teplot
   useEffect(() => {
     const interval = setInterval(() => {
-      fetch("https://blissful-connection-production.up.railway.app:5000/api/temperatures")
+      fetch("https://blissful-connection-production.up.railway.app/api/temperatures")
         .then(res => res.json())
         .then(data => {
           setTemps(data);
