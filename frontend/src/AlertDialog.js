@@ -44,9 +44,6 @@ export function AlertDialogAction({ children, onClick, className }) {
   );
 }
 
-/**
- * Tohle je důležité – „zrušit“ tlačítko
- */
 export function AlertDialogCancel({ children, onClick }) {
   return (
     <button

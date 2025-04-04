@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 export default function LandingScreen({ onEnter }) {
-  const [timeString, setTimeString] = useState("");
+  const [timeString, setTimeString] = useState('');
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -24,7 +24,7 @@ export default function LandingScreen({ onEnter }) {
       <div className="text-[#C7A324] text-xl whitespace-pre-line mb-8 text-center">
         {timeString}
       </div>
-      <button 
+      <button
         className="px-6 py-3 bg-[#C7A324] text-white rounded-lg hover:bg-[#af9120]"
         onClick={onEnter}
       >

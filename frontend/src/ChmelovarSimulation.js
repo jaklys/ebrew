@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, PlayCircle, PauseCircle } from 'lucide-react';
+import { PlayCircle, PauseCircle, ArrowLeft } from 'lucide-react';
 import Card from './Card';
 import {
   AlertDialog,
@@ -9,120 +9,115 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogTitle
+  AlertDialogTitle,
 } from './AlertDialog';
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine
 } from 'recharts';
 
 /**
- * Body na ose X (Y=0), když je potřeba přidat chmel.
- * Pokud `payload.hopEvent === 0`, zobrazíme červený bod na ose.
- * Jinak nic (null).
+ * Spočítá "plán" pro chmelovar –
+ * Tady například neděláme rampy, ale jen "plánovanou" teplotu 65..95 podle "evaporation"
  */
-function HopAxisDot({ cx, cy, payload }) {
-  // Pokud hopEvent není 0, nic nekreslíme.
-  if (payload.hopEvent == null) {
-    return null;
+function computeTemp(evap) {
+  // 4 => ~65°C, 10 => ~95°C => lineárně
+  return 65 + (evap - 4) * 5;
+}
+
+function calculatePlanChmel(recipe) {
+  const data = [];
+  const stepMarkers = [];
+  let t = 0;
+  let temp = 65;
+
+  // Počáteční bod
+  data.push({
+    time: t,
+    plannedTemp: temp,
+    actualTemp: null,
+    isStepPoint: true,
+    stepLabel: "Start"
+  });
+
+  let accumulatedTime = 0;
+
+  recipe.steps.forEach((step, index) => {
+    // Značka pro začátek kroku
+    stepMarkers.push({
+      time: accumulatedTime,
+      label: `Krok ${index+1}`
+    });
+
+    for (let i = 0; i < step.duration; i++) {
+      t++;
+      temp = computeTemp(step.evaporation || 4);
+      const isLastMinute = i === step.duration - 1;
+      data.push({
+        time: t,
+        plannedTemp: temp,
+        actualTemp: null,
+        isStepPoint: isLastMinute, // Označíme poslední minutu kroku
+        stepLabel: isLastMinute ? `Konec kroku ${index+1}` : undefined
+      });
+    }
+
+    accumulatedTime += step.duration;
+  });
+
+  return { data, stepMarkers };
+}
+
+function getTotalTime(recipe) {
+  return recipe.steps.reduce((acc, s) => acc + (s.duration||0), 0);
+}
+
+function getStepIndex(recipe, time) {
+  let acc = 0;
+  for (let i = 0; i < recipe.steps.length; i++) {
+    const d = recipe.steps[i].duration || 0;
+    if (time < acc + d) {
+      return i;
+    }
+    acc += d;
   }
-  // Vykreslíme větší červený bod.
-  return (
-    <circle
-      cx={cx}
-      cy={cy}
-      r={8}
-      fill="red"
-      stroke="white"
-      strokeWidth={2}
-    />
-  );
+  return recipe.steps.length - 1;
 }
 
 export default function ChmelovarSimulation({ recipe, onFinish }) {
-  // Ověření, zda recept existuje
-  if (!recipe || !Array.isArray(recipe.steps)) {
-    return (
-      <div className="p-4">
-        <h2 className="text-xl font-bold">Neplatný recept (chybí steps)!</h2>
-        <button
-          onClick={onFinish}
-          className="px-4 py-2 bg-blue-500 text-white rounded mt-4"
-        >
-          Zpět
-        </button>
-      </div>
-    );
-  }
-
   const [time, setTime] = useState(0);
+  const [currentTemp, setCurrentTemp] = useState(0); // Začínáme od nuly
+  const [graphData, setGraphData] = useState([]);
+  const [stepMarkers, setStepMarkers] = useState([]);
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
 
-  // Jediná křivka: actualTemp, startujeme od 0
-  const [graphData, setGraphData] = useState([]);
-  const [currentTemp, setCurrentTemp] = useState(0);
-
-  // Popupy
   const [showExitDialog, setShowExitDialog] = useState(false);
   const [showAddHopDialog, setShowAddHopDialog] = useState(false);
 
-  // Pomůcka, abychom u addHop ukázali popup jen jednou (na zač. kroku).
   const [doneHop, setDoneHop] = useState([]);
 
-  // Součet durations = totalTime
-  const totalTime = recipe.steps.reduce((acc, st) => acc + (st.duration || 0), 0);
+  // Konstanta pro rychlejší nárůst teploty - vyšší = rychlejší
+  const TEMP_RISE_FACTOR = 6; // Zvýšeno pro agresivnější nárůst
 
-  /**
-   * Můžete definovat, jak se teplota vyvíjí:
-   * Zde pro ukázku: "evaporation" (4..10) => cíl 65..95 °C,
-   * a posun max 2°C / min z actual temp.
-   */
-  function computeFinalTemp(evap) {
-    // 4 => 65°C, 10 => 95°C => lineární
-    return 65 + (evap - 4) * 5;
-  }
+  const totalTime = getTotalTime(recipe);
 
-  /**
-   * 1) Generování graphData:
-   *    - actualTemp = 0 (zatím),
-   *    - hopEvent = 0 v první minutě kroku, pokud addHop===true => trvalý bod na ose X
-   */
+  // reset on recipe change
   useEffect(() => {
-    const newData = [];
-    let accTime = 0;
-    recipe.steps.forEach(step => {
-      const dur = step.duration || 0;
-      // Vygenerujeme dur záznamů
-      for (let m = 0; m < dur; m++) {
-        newData.push({
-          time: accTime,
-          actualTemp: null, // zatím neznáme
-          // hopEvent=0 => bod na Y=0 => bude vidět
-          hopEvent: (step.addHop && m === 0) ? 0 : null
-        });
-        accTime++;
-      }
-    });
-
-    setGraphData(newData);
+    const { data, stepMarkers } = calculatePlanChmel(recipe);
+    if (data.length > 0) {
+      data[0].actualTemp = null;
+    }
+    setGraphData(data);
+    setStepMarkers(stepMarkers);
     setTime(0);
-    setCurrentTemp(0);   // start od 0°C
+    setCurrentTemp(0);
     setIsRunning(false);
     setIsPaused(false);
+    setShowExitDialog(false);
+    setShowAddHopDialog(false);
     setDoneHop([]);
   }, [recipe]);
 
-  /**
-   * 2) Vlastní simulace
-   *    Každých 400ms => time+1 => spočítáme newTemp, uložíme do graphData.
-   */
   useEffect(() => {
     if (!isRunning || isPaused) return;
 
@@ -133,35 +128,58 @@ export default function ChmelovarSimulation({ recipe, onFinish }) {
           setIsRunning(false);
           return prev;
         }
+        // get step
+        const si = getStepIndex(recipe, newT);
+        const st = recipe.steps[si];
+        const planned = computeTemp(st.evaporation || 4);
 
-        // Najdeme stepIndex (ve kterém kroku se nacházíme)
-        let acc = 0;
-        let stepIndex = -1;
-        for (let i = 0; i < recipe.steps.length; i++) {
-          const d = recipe.steps[i].duration || 0;
-          if (newT <= acc + d - 1) {
-            stepIndex = i;
-            break;
-          }
-          acc += d;
-        }
-
-        // Spočteme "cílovou" teplotu pro ten krok => finalT
-        let finalT = 0;
-        if (stepIndex >= 0) {
-          const st = recipe.steps[stepIndex];
-          finalT = computeFinalTemp(st.evaporation || 4);
-        }
-
-        // Aktualizace actualTemp => posun max 2°C
+        // posun actual temp - UPRAVENO pro agresivnější nárůst teploty
         setCurrentTemp(old => {
-          let diff = finalT - old;
-          if (Math.abs(diff) > 2) {
-            diff = diff > 0 ? 2 : -2;
-          }
-          const newVal = old + diff * (0.9 + Math.random() * 0.2);
+          // Speciální případ pro první bod - začínáme od nuly
+          if (prev === 0) {
+            const initialTemp = 0;
 
-          // Uložíme do graphData
+            setGraphData(d => {
+              const copy = [...d];
+              if (copy[newT]) {
+                copy[newT] = {
+                  ...copy[newT],
+                  actualTemp: initialTemp
+                };
+              }
+              return copy;
+            });
+
+            return initialTemp;
+          }
+
+          // Agresivnější nárůst v prvních 15 minutách
+          let newVal;
+
+          if (newT <= 15) {
+            // V prvních 15 minutách rychlejší nárůst
+            // Lineární interpolace: 0 -> plannedTemp během 15 minut
+            newVal = (planned * newT) / 15;
+
+            // Přidání malého náhodného kolísání pro realističtější průběh
+            newVal = newVal + (Math.random() - 0.5);
+          } else {
+            // Po 15 minutách normální simulace s menšími změnami
+            const diff = planned - old;
+            const maxChange = TEMP_RISE_FACTOR; // Zvýšená rychlost náběhu
+
+            let used = diff;
+            if (Math.abs(diff) > maxChange) {
+              used = diff > 0 ? maxChange : -maxChange;
+            }
+
+            const randomFactor = 0.9 + Math.random() * 0.2;
+            const randomNoise = (Math.random() - 0.5) * 0.5;
+
+            newVal = old + used * randomFactor + randomNoise;
+          }
+
+          // Aktualizace grafu
           setGraphData(d => {
             const copy = [...d];
             if (copy[newT]) {
@@ -172,78 +190,79 @@ export default function ChmelovarSimulation({ recipe, onFinish }) {
             }
             return copy;
           });
+
           return newVal;
         });
 
-        // 3) Kontrola addHop => popup
-        // Chceme ho zobrazit v 1. minutě kroku => newT-acc===1
-        if (stepIndex >= 0) {
-          const st = recipe.steps[stepIndex];
-          const stepStart = acc;
-          if (st.addHop && !doneHop.includes(stepIndex)) {
-            const minuteInStep = newT - stepStart;
-            if (minuteInStep === 1) {
-              // zobrazit popup
-              setIsRunning(false);
-              setShowAddHopDialog(true);
-              setDoneHop(prev2 => [...prev2, stepIndex]);
-            }
+        // addHop => popup?
+        if (st.addHop && !doneHop.includes(si)) {
+          // ukážeme popUp jednou
+          if ((newT - recipe.steps.slice(0, si).reduce((a, b) => a + (b.duration || 0), 0)) === 1) {
+            // => 1. minuta toho kroku
+            setIsRunning(false);
+            setShowAddHopDialog(true);
           }
         }
 
         return newT;
       });
-    }, 400);
+    }, 500);
 
     return () => clearInterval(interval);
-  }, [isRunning, isPaused, recipe, totalTime, doneHop]);
+  }, [isRunning, isPaused, doneHop, recipe, totalTime]);
 
-  // Start/pause tlačítko
   function toggleSimulation() {
     if (!isRunning) {
-      // spustit
       if (time >= totalTime) {
         // re-run
         setTime(0);
         setCurrentTemp(0);
-        // Re-init graphData?
-        // Buď tu zkopírujete kód z useEffect anebo refresh.
+        const { data, stepMarkers } = calculatePlanChmel(recipe);
+        setGraphData(data);
+        setStepMarkers(stepMarkers);
       }
       setIsRunning(true);
     } else {
-      // pauza
       setIsPaused(!isPaused);
     }
   }
 
-  // Okno pro "přidej chmel" => Zavřít => spustit simulaci
   function handleAddHopContinue() {
+    const si = getStepIndex(recipe, time);
+    setDoneHop(prev => [...prev, si]);
     setShowAddHopDialog(false);
     setIsRunning(true);
   }
 
+  // Vlastní tooltip pro body
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+
+      if (data.isStepPoint && data.stepLabel) {
+        return (
+          <div className="bg-white p-2 border rounded shadow-md">
+            <p className="font-bold">{data.stepLabel}</p>
+            <p>Čas: {label} min</p>
+            <p>Teplota: {payload[0].value?.toFixed(1) || '---'}°C</p>
+          </div>
+        );
+      }
+
+      return (
+        <div className="bg-white p-2 border rounded shadow-md">
+          <p>Čas: {label} min</p>
+          {payload.map((p, i) => (
+            <p key={i}>{p.name}: {p.value?.toFixed(1) || '---'}°C</p>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="min-h-screen bg-[#FFFBEF] text-[#C7A324] p-4">
-      {/* Horní pruh */}
-      <div className="flex items-center mb-4">
-        <button
-          onClick={() => {
-            if (isRunning) {
-              setShowExitDialog(true);
-            } else {
-              onFinish();
-            }
-          }}
-          className="p-2 text-[#C7A324] hover:text-[#af9120] rounded-full"
-        >
-          <ArrowLeft size={24}/>
-        </button>
-        <h1 className="flex-1 text-center text-2xl font-bold">
-          Simulace Chmelovaru: {recipe.name}
-        </h1>
-      </div>
-
-      {/* exit dialog */}
       <AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -266,11 +285,10 @@ export default function ChmelovarSimulation({ recipe, onFinish }) {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* addHop dialog */}
       <AlertDialog open={showAddHopDialog} onOpenChange={setShowAddHopDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Přidej chmel</AlertDialogTitle>
+            <AlertDialogTitle>Přidat chmel</AlertDialogTitle>
             <AlertDialogDescription>
               Je čas přidat chmel do varu!
             </AlertDialogDescription>
@@ -285,6 +303,21 @@ export default function ChmelovarSimulation({ recipe, onFinish }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <div className="flex items-center mb-4">
+        <button
+          onClick={() => {
+            if (isRunning) setShowExitDialog(true);
+            else onFinish();
+          }}
+          className="p-2 text-[#C7A324] hover:text-[#af9120] rounded-full"
+        >
+          <ArrowLeft size={24}/>
+        </button>
+        <h1 className="flex-1 text-center text-2xl font-bold">
+          Chmelovar: {recipe.name}
+        </h1>
+      </div>
 
       <Card className="p-6">
         <div className="flex items-center gap-4 mb-6">
@@ -318,16 +351,52 @@ export default function ChmelovarSimulation({ recipe, onFinish }) {
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={graphData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" />
-
-              {/* Doména od 0 do auto, abychom začínali y=0 dole */}
-              <YAxis domain={[0, 'auto']} />
-
-              <Tooltip />
+              <CartesianGrid strokeDasharray="3 3"/>
+              <XAxis dataKey="time"/>
+              <YAxis domain={[0,100]}/>
+              <Tooltip content={<CustomTooltip />} />
               <Legend />
 
-              {/* Jen jedna linka pro "skutečnou" teplotu */}
+              {/* Svislé čáry označující hranice kroků */}
+              {stepMarkers.map((marker, index) => (
+                <ReferenceLine
+                  key={index}
+                  x={marker.time}
+                  stroke="#FF9800"
+                  strokeDasharray="3 3"
+                  label={{
+                    value: marker.label,
+                    position: 'top',
+                    fill: '#FF9800',
+                    fontSize: 12
+                  }}
+                />
+              ))}
+
+              <Line
+  type="monotone"
+  dataKey="plannedTemp"
+  stroke="#2196F3"
+  strokeWidth={2}
+  name="Plánovaná"
+  dot={(props) => {
+    const { cx, cy, payload } = props;
+    // Zobrazit body pouze pro body označující kroky, bez ohledu na stav simulace
+    if (payload && payload.isStepPoint) {
+      return (
+        <circle
+          cx={cx}
+          cy={cy}
+          r={5}
+          fill="#2196F3"
+          stroke="#fff"
+          strokeWidth={2}
+        />
+      );
+    }
+    return null;
+  }}
+/>
               <Line
                 type="monotone"
                 dataKey="actualTemp"
@@ -335,15 +404,6 @@ export default function ChmelovarSimulation({ recipe, onFinish }) {
                 strokeWidth={2}
                 name="Skutečná"
                 dot={false}
-              />
-
-              {/* Další linka, jen pro body = Y=0 => addHop */}
-              <Line
-                type="monotone"
-                dataKey="hopEvent"
-                stroke="none"           // nechceme čáru
-                name="Přidat chmel"
-                dot={<HopAxisDot />}    // custom dot
               />
             </LineChart>
           </ResponsiveContainer>

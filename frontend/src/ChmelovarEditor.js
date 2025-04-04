@@ -2,29 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Trash2, Save, Plus } from 'lucide-react';
 import Card from './Card';
 
-/**
- * ChmelovarEditor
- * - Má pole "name" (název receptu).
- * - Kroky: duration (min), evaporation (4–10 %), addHop (bool).
- * - Pokud `editRecipe` je vyplněn, načteme je do stavu (včetně `name`).
- * - onSave({name, steps}, editIndex) => volá parent pro uložení.
- * - onCancel() => zrušení => typicky zpět do seznamu (ChmelovarSelector).
- */
 export default function ChmelovarEditor({
   onSave,
   onCancel,
   editRecipe = null,
   editIndex = null
 }) {
-  // Název receptu
   const [recipeName, setRecipeName] = useState('');
-  // Pole kroků
   const [steps, setSteps] = useState([]);
 
-  // Pokud se jedná o editaci existujícího receptu, načteme do stavu
   useEffect(() => {
     if (editRecipe) {
-      setRecipeName(editRecipe.name || '');
+      setRecipeName(editRecipe.name);
       setSteps([...editRecipe.steps]);
     } else {
       setRecipeName('');
@@ -32,46 +21,25 @@ export default function ChmelovarEditor({
     }
   }, [editRecipe]);
 
-  // Přidat krok
-  const addStep = () => {
-    setSteps(prev => [
-      ...prev,
-      { duration: 10, evaporation: 4, addHop: false }
-    ]);
-  };
+  function addStep() {
+    setSteps([...steps, { duration: 10, evaporation: 4, addHop: false }]);
+  }
+  function removeStep(idx) {
+    setSteps(steps.filter((_, i) => i !== idx));
+  }
+  function updateStep(idx, field, val) {
+    const arr = [...steps];
+    arr[idx][field] = field === 'addHop' ? val : Number(val);
+    setSteps(arr);
+  }
 
-  // Odebrat krok
-  const removeStep = (index) => {
-    setSteps(steps.filter((_, i) => i !== index));
-  };
-
-  // Upravit pole
-  const updateStep = (index, field, value) => {
-    const clone = [...steps];
-    clone[index][field] = value;
-    setSteps(clone);
-  };
-
-  // Uložit
-  const handleSave = () => {
-    if (!recipeName) {
-      alert("Zadejte název receptu.");
-      return;
-    }
-    if (steps.length === 0) {
-      alert("Musí být aspoň 1 krok pro chmelovar.");
-      return;
-    }
-    // Vrátíme objekt: { name, steps }
-    onSave({
-      name: recipeName,
-      steps
-    }, editIndex);
-  };
+  function handleSave() {
+    if (!recipeName) return;
+    onSave({ name: recipeName, steps }, editIndex);
+  }
 
   return (
     <div className="min-h-screen bg-[#FFFBEF] text-[#C7A324] p-4">
-      {/* Horní lišta */}
       <div className="flex items-center mb-4">
         <button
           onClick={onCancel}
@@ -85,84 +53,78 @@ export default function ChmelovarEditor({
       </div>
 
       <Card className="p-6 text-black">
-        {/* NÁZEV RECEPTU */}
         <div className="mb-6">
-          <label className="block text-sm font-medium mb-2">
-            Název receptu (chmelovar)
-          </label>
+          <label className="block text-sm font-medium mb-2">Název receptu</label>
           <input
             type="text"
             value={recipeName}
             onChange={(e) => setRecipeName(e.target.value)}
             className="w-full p-2 border rounded"
-            placeholder="Např. IPA Chmelovar"
           />
         </div>
 
-        {/* KROKY */}
         <div className="space-y-4 mb-6">
-          {steps.map((step, index) => (
-            <div key={index} className="bg-gray-50 p-4 rounded">
+          {steps.map((step, idx) => (
+            <div key={idx} className="p-4 bg-gray-50 rounded">
               <div className="flex justify-between items-center mb-2">
-                <span className="font-medium">Krok {index + 1}</span>
+                <span className="font-medium">Krok {idx + 1}</span>
                 <button
-                  onClick={() => removeStep(index)}
+                  onClick={() => removeStep(idx)}
                   className="text-red-500"
                 >
                   <Trash2 size={20}/>
                 </button>
               </div>
-
-              {/* Doba kroku */}
-              <label className="block mb-1 text-sm text-gray-600">
-                Doba kroku (min)
-              </label>
-              <input
-                type="number"
-                value={step.duration}
-                onChange={(e) => updateStep(index, 'duration', Number(e.target.value))}
-                className="w-full p-2 border rounded mb-3"
-                min={1}
-                max={120}
-              />
-
-              {/* Odpar vody (%) */}
-              <label className="block mb-1 text-sm text-gray-600">
-                Odpar vody (4–10 %)
-              </label>
-              <input
-                type="number"
-                value={step.evaporation}
-                onChange={(e) => updateStep(index, 'evaporation', Number(e.target.value))}
-                className="w-full p-2 border rounded mb-3"
-                min={4}
-                max={10}
-              />
-
-              {/* Checkbox addHop */}
-              <label className="flex items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={step.addHop}
-                  onChange={(e) => updateStep(index, 'addHop', e.target.checked)}
-                />
-                Přidat chmel v tomto kroku
-              </label>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="flex flex-col">
+                  <label className="text-sm text-gray-600 mb-1">
+                    Doba kroku (min)
+                  </label>
+                  <input
+                    type="number"
+                    value={step.duration}
+                    onChange={(e) => updateStep(idx, 'duration', e.target.value)}
+                    className="w-full p-2 border rounded"
+                    min="1"
+                  />
+                </div>
+                <div className="flex flex-col">
+                  <label className="text-sm text-gray-600 mb-1">
+                    Odpar (%)
+                  </label>
+                  <input
+                    type="number"
+                    value={step.evaporation}
+                    onChange={(e) => updateStep(idx, 'evaporation', e.target.value)}
+                    className="w-full p-2 border rounded"
+                    min="4"
+                    max="10"
+                  />
+                </div>
+                <div className="flex flex-col">
+                  <label className="text-sm text-gray-600 mb-1">
+                    Přidat chmel?
+                  </label>
+                  <input
+                    type="checkbox"
+                    checked={step.addHop}
+                    onChange={(e) => updateStep(idx, 'addHop', e.target.checked)}
+                    className="h-5 w-5"
+                  />
+                </div>
+              </div>
             </div>
           ))}
-
-          {/* Tlačítko "Přidat krok" */}
           <button
             onClick={addStep}
             className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg
-                     flex items-center justify-center gap-2 hover:border-blue-500"
+                       flex items-center justify-center gap-2 hover:border-blue-500"
           >
             <Plus size={20}/>
             Přidat krok
           </button>
         </div>
 
-        {/* Tlačítka dole */}
         <div className="flex justify-end gap-4">
           <button
             onClick={onCancel}
@@ -173,6 +135,7 @@ export default function ChmelovarEditor({
           <button
             onClick={handleSave}
             className="px-6 py-3 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center gap-2"
+            disabled={!recipeName}
           >
             <Save size={20}/>
             {editRecipe ? 'Uložit změny' : 'Uložit recept'}

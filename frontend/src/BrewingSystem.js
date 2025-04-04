@@ -1,60 +1,96 @@
 import React, { useState, useEffect } from 'react';
-
-// Rmutování
+import LoginScreen from './LoginScreen';
 import LandingScreen from './LandingScreen';
 import MainMenu from './MainMenu';
-import Rmutovani from './Rmutovani';          // zobrazí RecipeSelector
+import UniversalSelector from './UniversalSelector';
 import RecipeEditor from './RecipeEditor';
 import BrewingSimulation from './BrewingSimulation';
-
-// Chmelovar
-import ChmelovarSelector from './ChmelovarSelector';
 import ChmelovarEditor from './ChmelovarEditor';
 import ChmelovarSimulation from './ChmelovarSimulation';
+import ManualControl from './ManualControl';
 
 export default function BrewingSystem() {
+  // 1) VŠECHNY HOOKY NAPLOCHO
+
+  // Autentizace
+  const [token, setToken] = useState(null);
+
+  // Které „view" chceme vykreslit
   const [view, setView] = useState('landing');
 
-  // =========== STAVY: RMUT ===========
+  // Rmut
   const [recipes, setRecipes] = useState([]);
   const [selectedRecipe, setSelectedRecipe] = useState(null);
   const [editingRecipe, setEditingRecipe] = useState(null);
   const [editingIndex, setEditingIndex] = useState(null);
 
-  // =========== STAVY: CHMELOVAR ===========
+  // Chmelovar
   const [chmelovarRecipes, setChmelovarRecipes] = useState([]);
   const [selectedChmelovar, setSelectedChmelovar] = useState(null);
   const [chmelovarEditing, setChmelovarEditing] = useState(null);
   const [chmelovarEditIndex, setChmelovarEditIndex] = useState(null);
 
-  // =========== NAČTENÍ DAT Z BACKENDU ===========
-  useEffect(() => {
-    // 1) Načíst rmutovací recepty
-    fetch("https://blissful-connection-production.up.railway.app/api/recipes")
-      .then((res) => res.json())
-      .then((data) => setRecipes(data))
-      .catch((err) => console.error("Chyba při načítání /api/recipes:", err));
+  // Pro fetch
+  const BASE_URL = "https://blissful-connection-production.up.railway.app";
 
-    // 2) Načíst chmelovarové recepty
-    fetch("https://blissful-connection-production.up.railway.app/api/chmelovarRecipes")
-      .then((res) => res.json())
-      .then((data) => setChmelovarRecipes(data))
-      .catch((err) => console.error("Chyba při načítání /api/chmelovarRecipes:", err));
+  // 2) useEffect – při startu stáhneme recepty (pokud jste přihlášeni?)
+  //   Zde pro ukázku nestavíme token, ale klidně můžete chránit i GET tokenem
+  useEffect(() => {
+    // Rmut
+    fetch(`${BASE_URL}/api/recipes`)
+      .then(res => res.json())
+      .then(data => setRecipes(data))
+      .catch(err => console.error("Chyba rmut GET:", err));
+
+    // Chmelovar
+    fetch(`${BASE_URL}/api/chmelovarRecipes`)
+      .then(res => res.json())
+      .then(data => setChmelovarRecipes(data))
+      .catch(err => console.error("Chyba chmelovar GET:", err));
   }, []);
 
-  // =========== LANDING A MENU ===========
-  function handleEnterApp() {
-    setView('menu');
-  }
-  function handleGoRmutovani() {
-    setView('rmutSelect');
-  }
-  function handleGoChmelovar() {
-    setView('chmelovarSelect');
+  // 3) Podmíněný render: pokud NEJSI přihlášen -> return <LoginScreen />
+  if (!token) {
+    return (
+      <LoginScreen
+        onLoginSuccess={(tok) => setToken(tok)}
+      />
+    );
   }
 
-  // =========== LOGIKA RMUT ===========
-  // 1) Zobrazení seznamu (Rmutovani => RecipeSelector)
+  // 4) Teď přepínáme `view` -> co zobrazit
+  // LANDING
+  if (view === 'landing') {
+    return (
+      <LandingScreen onEnter={() => setView('menu')} />
+    );
+  }
+
+  // MENU
+  if (view === 'menu') {
+    return (
+      <MainMenu
+        onGoRmutovani={() => setView('rmutSelect')}
+        onGoChmelovar={() => setView('chmelovarSelect')}
+        onGoManualControl={() => setView('manualControl')}
+        token={token}
+      />
+    );
+  }
+
+  // ========== MANUAL CONTROL ==========
+  if (view === 'manualControl') {
+    return (
+      <ManualControl
+        onBack={() => setView('menu')}
+        token={token}
+      />
+    );
+  }
+
+  // ========== RMUT ==========
+
+  // Seznam
   function handleSelectRecipe(recipe) {
     setSelectedRecipe(recipe);
     setView('rmutSim');
@@ -64,158 +100,106 @@ export default function BrewingSystem() {
     setEditingIndex(null);
     setView('rmutEdit');
   }
-  function handleEditRecipe(recipe, index) {
+  function handleEditRecipe(recipe, idx) {
     setEditingRecipe(recipe);
-    setEditingIndex(index);
+    setEditingIndex(idx);
     setView('rmutEdit');
   }
-
-  // Mazání receptu (poslat DELETE do backendu?):
-  function handleDeleteRecipe(index) {
-    // 1) Zjistit ID, pokud existuje, nebo poslat do backendu tělo
-    // V ukázce jen lokálně:
-    const newArr = recipes.filter((_, i) => i !== index);
-    setRecipes(newArr);
-
-    // (Volitelně) fetch(".../api/recipes/XYZ", { method: "DELETE" }) ...
+  function handleDeleteRecipe(idx) {
+    // Voláme DELETE -> /api/recipes/:idx
+    fetch(`${BASE_URL}/api/recipes/${idx}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    .then(res => res.json())
+    .then(msg => {
+      console.log("Delete rmut ok:", msg);
+      setRecipes(recipes.filter((_, i)=> i!== idx));
+    })
+    .catch(err => console.error("Chyba mazani rmut:", err));
   }
 
   function handleCopyRecipe(recipe) {
-    // Tady buď pošlu fetch("POST /api/recipes"),
-    // nebo udělám jen lokální kopii:
-    const baseName = recipe.name.replace(/\s*copy\d*$/, '');
-    const copies = recipes.filter(r => r.name.startsWith(baseName) && /\s*copy(\d+)$/.test(r.name));
-    let copyNum = 1;
-    if (copies.length > 0) {
-      const nums = copies.map(r => {
-        const m = r.name.match(/copy(\d+)$/);
-        return m ? parseInt(m[1]) : 0;
-      }).filter(n => !isNaN(n));
-      if (nums.length>0) {
-        copyNum = Math.max(...nums) + 1;
-      }
-    }
-    const newRec = {
+    // Vytvoříme kopii receptu s novým názvem
+    const copiedRecipe = {
       ...recipe,
-      name: `${baseName} copy${copyNum}`,
+      name: `Kopie - ${recipe.name}`
     };
-    setRecipes([...recipes, newRec]);
 
-    // fetch("POST /api/recipes", { body: JSON.stringify(newRec) }) ...
+    // POST => /api/recipes
+    fetch(`${BASE_URL}/api/recipes`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(copiedRecipe)
+    })
+    .then(res => res.json())
+    .then(r => {
+      console.log("Recipe copied:", r);
+      setRecipes([...recipes, copiedRecipe]);
+    })
+    .catch(err => console.error("Error copying recipe:", err));
   }
 
-  // 2) Uložení receptu => simulace
-  function handleSaveRecipe(newRec, index) {
-    if (index !== null) {
-      // edit
-      const arr = [...recipes];
-      arr[index] = newRec;
-      setRecipes(arr);
-      // fetch("PUT /api/recipes", { ...})
+  function handleSaveRecipe(newRec, idx) {
+    if (idx!== null) {
+      // PUT => /api/recipes/:idx
+      fetch(`${BASE_URL}/api/recipes/${idx}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(newRec)
+      })
+      .then(res => res.json())
+      .then(r=> {
+        console.log("Edit rmut ok:", r);
+        const arr = [...recipes];
+        arr[idx] = newRec;
+        setRecipes(arr);
+        setSelectedRecipe(newRec);
+        setView('rmutSim');
+      })
+      .catch(err => console.error("Chyba edit rmut:", err));
     } else {
-      // nový
-      setRecipes([...recipes, newRec]);
-      // fetch("POST /api/recipes", {...})
+      // POST => /api/recipes
+      fetch(`${BASE_URL}/api/recipes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(newRec)
+      })
+      .then(res => res.json())
+      .then(r => {
+        console.log("Create rmut ok:", r);
+        setRecipes([...recipes, newRec]);
+        setSelectedRecipe(newRec);
+        setView('rmutSim');
+      })
+      .catch(err => console.error("Chyba create rmut:", err));
     }
-    setSelectedRecipe(newRec);
-    setView('rmutSim');
   }
   function handleCancelEdit() {
     setEditingRecipe(null);
     setEditingIndex(null);
     setView('rmutSelect');
   }
-
-  // 3) Simulace
   function handleFinishSimulation() {
     setView('rmutSelect');
-    setSelectedRecipe(null);
   }
 
-  // =========== LOGIKA CHMELOVAR ===========
-  // 1) Seznam => ChmelovarSelector
-  function handleSelectChmelovar(recipe) {
-    setSelectedChmelovar(recipe);
-    setView('chmelovarSim');
-  }
-  function handleCreateChmelovar() {
-    setChmelovarEditing(null);
-    setChmelovarEditIndex(null);
-    setView('chmelovarEdit');
-  }
-  function handleEditChmelovar(recipe, index) {
-    setChmelovarEditing(recipe);
-    setChmelovarEditIndex(index);
-    setView('chmelovarEdit');
-  }
-  function handleDeleteChmelovar(index) {
-    const newArr = chmelovarRecipes.filter((_, i) => i !== index);
-    setChmelovarRecipes(newArr);
-    // fetch DELETE ...
-  }
-  function handleCopyChmelovar(recipe) {
-    const baseName = recipe.name.replace(/\s*copy\d*$/, '');
-    const copies = chmelovarRecipes.filter(r =>
-      r.name.startsWith(baseName) && /\s*copy(\d+)$/.test(r.name));
-    let copyNum = 1;
-    if (copies.length>0) {
-      const nums = copies.map(r => {
-        const m = r.name.match(/copy(\d+)$/);
-        return m ? parseInt(m[1]) : 0;
-      }).filter(n => !isNaN(n));
-      if (nums.length>0) {
-        copyNum = Math.max(...nums)+1;
-      }
-    }
-    const newRec = {
-      ...recipe,
-      name: `${baseName} copy${copyNum}`
-    };
-    setChmelovarRecipes([...chmelovarRecipes, newRec]);
-  }
-
-  // 2) Uložení => simulace
-  function handleSaveChmelovar(newRec, index) {
-    if (index !== null) {
-      const arr = [...chmelovarRecipes];
-      arr[index] = newRec;
-      setChmelovarRecipes(arr);
-    } else {
-      setChmelovarRecipes([...chmelovarRecipes, newRec]);
-    }
-    setSelectedChmelovar(newRec);
-    setView('chmelovarSim');
-  }
-  function handleCancelChmelovar() {
-    setChmelovarEditing(null);
-    setChmelovarEditIndex(null);
-    setView('chmelovarSelect');
-  }
-
-  // 3) Simulace
-  function handleFinishChmelovarSim() {
-    setSelectedChmelovar(null);
-    setView('chmelovarSelect');
-  }
-
-  // =========== RENDER PODLE `view` ===========
-
-  if (view==='landing') {
-    return <LandingScreen onEnter={handleEnterApp} />;
-  }
-  if (view==='menu') {
+  // rmutSelect
+  if (view === 'rmutSelect') {
     return (
-      <MainMenu
-        onGoRmutovani={handleGoRmutovani}
-        onGoChmelovar={handleGoChmelovar}
-      />
-    );
-  }
-
-  // RMUT
-  if (view==='rmutSelect') {
-    return (
-      <Rmutovani
+      <UniversalSelector
+        title="Seznam Rmut receptů"
         recipes={recipes}
         onSelect={handleSelectRecipe}
         onCreateNew={handleCreateNew}
@@ -226,7 +210,8 @@ export default function BrewingSystem() {
       />
     );
   }
-  if (view==='rmutEdit') {
+  // rmutEdit
+  if (view === 'rmutEdit') {
     return (
       <RecipeEditor
         editRecipe={editingRecipe}
@@ -236,7 +221,8 @@ export default function BrewingSystem() {
       />
     );
   }
-  if (view==='rmutSim' && selectedRecipe) {
+  // rmutSim
+  if (view === 'rmutSim' && selectedRecipe) {
     return (
       <BrewingSimulation
         recipe={selectedRecipe}
@@ -245,10 +231,115 @@ export default function BrewingSystem() {
     );
   }
 
-  // CHMELOVAR
-  if (view==='chmelovarSelect') {
+  // ========== CHMELOVAR ==========
+
+  function handleSelectChmelovar(recipe) {
+    setSelectedChmelovar(recipe);
+    setView('chmelovarSim');
+  }
+  function handleCreateChmelovar() {
+    setChmelovarEditing(null);
+    setChmelovarEditIndex(null);
+    setView('chmelovarEdit');
+  }
+  function handleEditChmelovar(recipe, idx) {
+    setChmelovarEditing(recipe);
+    setChmelovarEditIndex(idx);
+    setView('chmelovarEdit');
+  }
+  function handleDeleteChmelovar(idx) {
+    fetch(`${BASE_URL}/api/chmelovarRecipes/${idx}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    .then(res => res.json())
+    .then(msg => {
+      console.log("Delete chmelovar ok:", msg);
+      setChmelovarRecipes(chmelovarRecipes.filter((_, i)=> i!== idx));
+    })
+    .catch(err => console.error("Chyba del chmelovar:", err));
+  }
+
+  function handleCopyChmelovar(recipe) {
+    // Vytvoříme kopii chmelovar receptu s novým názvem
+    const copiedRecipe = {
+      ...recipe,
+      name: `Kopie - ${recipe.name}`
+    };
+
+    // POST => /api/chmelovarRecipes
+    fetch(`${BASE_URL}/api/chmelovarRecipes`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(copiedRecipe)
+    })
+    .then(res => res.json())
+    .then(msg => {
+      console.log("Chmelovar recipe copied:", msg);
+      setChmelovarRecipes([...chmelovarRecipes, copiedRecipe]);
+    })
+    .catch(err => console.error("Error copying chmelovar recipe:", err));
+  }
+
+  function handleSaveChmelovar(newRec, idx) {
+    if (idx!== null) {
+      // PUT => /api/chmelovarRecipes/:idx
+      fetch(`${BASE_URL}/api/chmelovarRecipes/${idx}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(newRec)
+      })
+      .then(res => res.json())
+      .then(msg => {
+        console.log("Edit chmelovar ok:", msg);
+        const arr = [...chmelovarRecipes];
+        arr[idx] = newRec;
+        setChmelovarRecipes(arr);
+        setSelectedChmelovar(newRec);
+        setView('chmelovarSim');
+      })
+      .catch(err => console.error("Chyba edit chmel:", err));
+    } else {
+      // POST => /api/chmelovarRecipes
+      fetch(`${BASE_URL}/api/chmelovarRecipes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(newRec)
+      })
+      .then(res => res.json())
+      .then(msg => {
+        console.log("Create chmelovar ok:", msg);
+        setChmelovarRecipes([...chmelovarRecipes, newRec]);
+        setSelectedChmelovar(newRec);
+        setView('chmelovarSim');
+      })
+      .catch(err => console.error("Chyba create chmelovar:", err));
+    }
+  }
+  function handleCancelChmelovar() {
+    setChmelovarEditing(null);
+    setChmelovarEditIndex(null);
+    setView('chmelovarSelect');
+  }
+  function handleFinishChmelovarSim() {
+    setView('chmelovarSelect');
+  }
+
+  if (view === 'chmelovarSelect') {
     return (
-      <ChmelovarSelector
+      <UniversalSelector
+        title="Seznam Chmelovar receptů"
         recipes={chmelovarRecipes}
         onSelect={handleSelectChmelovar}
         onCreateNew={handleCreateChmelovar}
@@ -259,7 +350,7 @@ export default function BrewingSystem() {
       />
     );
   }
-  if (view==='chmelovarEdit') {
+  if (view === 'chmelovarEdit') {
     return (
       <ChmelovarEditor
         editRecipe={chmelovarEditing}
@@ -269,7 +360,7 @@ export default function BrewingSystem() {
       />
     );
   }
-  if (view==='chmelovarSim' && selectedChmelovar) {
+  if (view === 'chmelovarSim' && selectedChmelovar) {
     return (
       <ChmelovarSimulation
         recipe={selectedChmelovar}
@@ -278,6 +369,5 @@ export default function BrewingSystem() {
     );
   }
 
-  // Fallback
   return <div>Neznámé view: {view}</div>;
 }
