@@ -303,8 +303,11 @@ def check_token(req):
     # typicky "Bearer mytoken"
     if not auth.startswith("Bearer "):
         return False
-    token = auth.split(" ")[1]
-    return (token == "mytoken")
+    parts = auth.split(" ", 1)
+    if len(parts) < 2 or not parts[1]:
+        return False
+    token = parts[1]
+    return token == "mytoken"
 
 
 @app.route("/api/importRecipe", methods=["POST"])
