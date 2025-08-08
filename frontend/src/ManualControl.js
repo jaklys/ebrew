@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Thermometer, Power, RotateCw, RefreshCw } from 'lucide-react';
 import Card from './Card';
+import { BASE_URL } from './config';
 
 export default function ManualControl({ onBack, token }) {
   // Stavy pro čerpadlo
@@ -30,7 +31,7 @@ export default function ManualControl({ onBack, token }) {
   // Načtení teplot
   useEffect(() => {
     const interval = setInterval(() => {
-      fetch("https://blissful-connection-production.up.railway.app/api/temperatures")
+      fetch(`${BASE_URL}/api/temperatures`)
         .then(res => res.json())
         .then(data => {
           setTemps(data);
@@ -46,7 +47,7 @@ export default function ManualControl({ onBack, token }) {
     // Zde by byl API call
     setPumpActive(!pumpActive);
     // Příklad API volání:
-    // fetch("http://127.0.0.1:5000/api/control/pump", {
+    // fetch(`${BASE_URL}/api/control/pump`, {
     //   method: 'POST',
     //   headers: {
     //     'Content-Type': 'application/json',

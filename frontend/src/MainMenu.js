@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Thermometer, Droplets, Snowflake, Settings, Droplet } from 'lucide-react';
 import Card from './Card';
 import ImportRecipe from './ImportRecipe';
+import { BASE_URL } from './config';
 
 export default function MainMenu({ onGoRmutovani, onGoChmelovar, onGoManualControl, token }) {
   const [showImport, setShowImport] = useState(false);
@@ -21,7 +22,7 @@ export default function MainMenu({ onGoRmutovani, onGoChmelovar, onGoManualContr
 
   useEffect(() => {
     // Načtení teplot
-    fetch("https://blissful-connection-production.up.railway.app/api/temperatures")
+    fetch(`${BASE_URL}/api/temperatures`)
       .then(res => res.json())
       .then(data => {
         setTemps(data);
@@ -29,7 +30,7 @@ export default function MainMenu({ onGoRmutovani, onGoChmelovar, onGoManualContr
       .catch(err => console.error("Chyba při načítání teplot:", err));
 
     // Načtení objemu vody - mockovaná data, nahraďte skutečným API endpointem
-    // fetch("http://127.0.0.1:5000/api/water-level")
+    // fetch(`${BASE_URL}/api/water-level`)
     //   .then(res => res.json())
     //   .then(data => {
     //     setWaterLevel(data.boilerLevel);
@@ -40,7 +41,7 @@ export default function MainMenu({ onGoRmutovani, onGoChmelovar, onGoManualContr
     setWaterLevel(25.5);
 
     // Načtení počtu receptů
-    fetch("https://blissful-connection-production.up.railway.app/api/recipes")
+    fetch(`${BASE_URL}/api/recipes`)
       .then(res => res.json())
       .then(data => {
         setRecipesCount(data.length || 0);
@@ -51,7 +52,7 @@ export default function MainMenu({ onGoRmutovani, onGoChmelovar, onGoManualContr
       });
 
     // Načtení počtu chmelovar receptů
-    fetch("https://blissful-connection-production.up.railway.app/api/chmelovarRecipes")
+    fetch(`${BASE_URL}/api/chmelovarRecipes`)
       .then(res => res.json())
       .then(data => {
         setChmelovarCount(data.length || 0);

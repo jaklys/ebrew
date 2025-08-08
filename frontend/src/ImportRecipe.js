@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { BASE_URL } from './config';
 
 export default function ImportRecipe({ token, onClose }) {
   const [error, setError] = useState('');
@@ -20,7 +21,7 @@ export default function ImportRecipe({ token, onClose }) {
       try {
         const recipeObj = JSON.parse(text);
         // Odeslat do /api/importRecipe
-        fetch("http://127.0.0.1:5000/api/importRecipe", {
+        fetch(`${BASE_URL}/api/importRecipe`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

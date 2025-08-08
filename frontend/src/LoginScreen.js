@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { BASE_URL } from './config';
 
 export default function LoginScreen({ onLoginSuccess }) {
   const [username, setUsername] = useState('');
@@ -8,7 +9,7 @@ export default function LoginScreen({ onLoginSuccess }) {
   function handleSubmit(e) {
     e.preventDefault();
     // Volání /api/login
-    fetch("https://blissful-connection-production.up.railway.app/api/login", {
+    fetch(`${BASE_URL}/api/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password })

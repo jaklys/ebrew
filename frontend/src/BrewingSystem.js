@@ -8,6 +8,7 @@ import BrewingSimulation from './BrewingSimulation';
 import ChmelovarEditor from './ChmelovarEditor';
 import ChmelovarSimulation from './ChmelovarSimulation';
 import ManualControl from './ManualControl';
+import { BASE_URL, BASE_WS_URL } from './config';
 
 export default function BrewingSystem() {
   // 1) VŠECHNY HOOKY NAPLOCHO
@@ -30,24 +31,38 @@ export default function BrewingSystem() {
   const [chmelovarEditing, setChmelovarEditing] = useState(null);
   const [chmelovarEditIndex, setChmelovarEditIndex] = useState(null);
 
-  // Pro fetch
-  const BASE_URL = "https://blissful-connection-production.up.railway.app";
-
-  // 2) useEffect – při startu stáhneme recepty (pokud jste přihlášeni?)
-  //   Zde pro ukázku nestavíme token, ale klidně můžete chránit i GET tokenem
+  // 2) Load initial state and subscribe to websocket updates
   useEffect(() => {
-    // Rmut
-    fetch(`${BASE_URL}/api/recipes`)
+    fetch(`${BASE_URL}/api/state`)
       .then(res => res.json())
-      .then(data => setRecipes(data))
-      .catch(err => console.error("Chyba rmut GET:", err));
+      .then(data => {
+        setRecipes(data.recipes || []);
+        setChmelovarRecipes(data.chmelovarRecipes || []);
+      })
+      .catch(err => console.error("Chyba state GET:", err));
 
-    // Chmelovar
-    fetch(`${BASE_URL}/api/chmelovarRecipes`)
-      .then(res => res.json())
-      .then(data => setChmelovarRecipes(data))
-      .catch(err => console.error("Chyba chmelovar GET:", err));
+    const ws = new WebSocket(`${BASE_WS_URL}/ws`);
+    ws.onmessage = evt => {
+      try {
+        const data = JSON.parse(evt.data);
+        setRecipes(data.recipes || []);
+        setChmelovarRecipes(data.chmelovarRecipes || []);
+      } catch (e) {
+        console.error("Invalid WS message", e);
+      }
+    };
+    return () => ws.close();
   }, []);
+
+  function postState(newRecipes, newChmelovar) {
+    fetch(`${BASE_URL}/api/state`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ recipes: newRecipes, chmelovarRecipes: newChmelovar })
+    }).catch(err => console.error("Chyba state POST:", err));
+  }
 
   // 3) Podmíněný render: pokud NEJSI přihlášen -> return <LoginScreen />
   if (!token) {
@@ -106,85 +121,32 @@ export default function BrewingSystem() {
     setView('rmutEdit');
   }
   function handleDeleteRecipe(idx) {
-    // Voláme DELETE -> /api/recipes/:idx
-    fetch(`${BASE_URL}/api/recipes/${idx}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    })
-    .then(res => res.json())
-    .then(msg => {
-      console.log("Delete rmut ok:", msg);
-      setRecipes(recipes.filter((_, i)=> i!== idx));
-    })
-    .catch(err => console.error("Chyba mazani rmut:", err));
+    const arr = recipes.filter((_, i) => i !== idx);
+    setRecipes(arr);
+    postState(arr, chmelovarRecipes);
   }
 
   function handleCopyRecipe(recipe) {
-    // Vytvoříme kopii receptu s novým názvem
     const copiedRecipe = {
       ...recipe,
       name: `Kopie - ${recipe.name}`
     };
-
-    // POST => /api/recipes
-    fetch(`${BASE_URL}/api/recipes`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify(copiedRecipe)
-    })
-    .then(res => res.json())
-    .then(r => {
-      console.log("Recipe copied:", r);
-      setRecipes([...recipes, copiedRecipe]);
-    })
-    .catch(err => console.error("Error copying recipe:", err));
+    const arr = [...recipes, copiedRecipe];
+    setRecipes(arr);
+    postState(arr, chmelovarRecipes);
   }
 
   function handleSaveRecipe(newRec, idx) {
-    if (idx!== null) {
-      // PUT => /api/recipes/:idx
-      fetch(`${BASE_URL}/api/recipes/${idx}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(newRec)
-      })
-      .then(res => res.json())
-      .then(r=> {
-        console.log("Edit rmut ok:", r);
-        const arr = [...recipes];
-        arr[idx] = newRec;
-        setRecipes(arr);
-        setSelectedRecipe(newRec);
-        setView('rmutSim');
-      })
-      .catch(err => console.error("Chyba edit rmut:", err));
+    const arr = [...recipes];
+    if (idx !== null) {
+      arr[idx] = newRec;
     } else {
-      // POST => /api/recipes
-      fetch(`${BASE_URL}/api/recipes`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(newRec)
-      })
-      .then(res => res.json())
-      .then(r => {
-        console.log("Create rmut ok:", r);
-        setRecipes([...recipes, newRec]);
-        setSelectedRecipe(newRec);
-        setView('rmutSim');
-      })
-      .catch(err => console.error("Chyba create rmut:", err));
+      arr.push(newRec);
     }
+    setRecipes(arr);
+    setSelectedRecipe(newRec);
+    postState(arr, chmelovarRecipes);
+    setView('rmutSim');
   }
   function handleCancelEdit() {
     setEditingRecipe(null);
@@ -248,84 +210,32 @@ export default function BrewingSystem() {
     setView('chmelovarEdit');
   }
   function handleDeleteChmelovar(idx) {
-    fetch(`${BASE_URL}/api/chmelovarRecipes/${idx}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    })
-    .then(res => res.json())
-    .then(msg => {
-      console.log("Delete chmelovar ok:", msg);
-      setChmelovarRecipes(chmelovarRecipes.filter((_, i)=> i!== idx));
-    })
-    .catch(err => console.error("Chyba del chmelovar:", err));
+    const arr = chmelovarRecipes.filter((_, i) => i !== idx);
+    setChmelovarRecipes(arr);
+    postState(recipes, arr);
   }
 
   function handleCopyChmelovar(recipe) {
-    // Vytvoříme kopii chmelovar receptu s novým názvem
     const copiedRecipe = {
       ...recipe,
       name: `Kopie - ${recipe.name}`
     };
-
-    // POST => /api/chmelovarRecipes
-    fetch(`${BASE_URL}/api/chmelovarRecipes`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify(copiedRecipe)
-    })
-    .then(res => res.json())
-    .then(msg => {
-      console.log("Chmelovar recipe copied:", msg);
-      setChmelovarRecipes([...chmelovarRecipes, copiedRecipe]);
-    })
-    .catch(err => console.error("Error copying chmelovar recipe:", err));
+    const arr = [...chmelovarRecipes, copiedRecipe];
+    setChmelovarRecipes(arr);
+    postState(recipes, arr);
   }
 
   function handleSaveChmelovar(newRec, idx) {
-    if (idx!== null) {
-      // PUT => /api/chmelovarRecipes/:idx
-      fetch(`${BASE_URL}/api/chmelovarRecipes/${idx}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(newRec)
-      })
-      .then(res => res.json())
-      .then(msg => {
-        console.log("Edit chmelovar ok:", msg);
-        const arr = [...chmelovarRecipes];
-        arr[idx] = newRec;
-        setChmelovarRecipes(arr);
-        setSelectedChmelovar(newRec);
-        setView('chmelovarSim');
-      })
-      .catch(err => console.error("Chyba edit chmel:", err));
+    const arr = [...chmelovarRecipes];
+    if (idx !== null) {
+      arr[idx] = newRec;
     } else {
-      // POST => /api/chmelovarRecipes
-      fetch(`${BASE_URL}/api/chmelovarRecipes`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(newRec)
-      })
-      .then(res => res.json())
-      .then(msg => {
-        console.log("Create chmelovar ok:", msg);
-        setChmelovarRecipes([...chmelovarRecipes, newRec]);
-        setSelectedChmelovar(newRec);
-        setView('chmelovarSim');
-      })
-      .catch(err => console.error("Chyba create chmelovar:", err));
+      arr.push(newRec);
     }
+    setChmelovarRecipes(arr);
+    setSelectedChmelovar(newRec);
+    postState(recipes, arr);
+    setView('chmelovarSim');
   }
   function handleCancelChmelovar() {
     setChmelovarEditing(null);
